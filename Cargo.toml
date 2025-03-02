@@ -1,0 +1,22 @@
+[package]
+name = "dumper"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+hwbp = { path = "D:/Work/Coding/hwbp/" }
+pelite = "0.10.0"
+windows = { version = "0.59.0", features = [
+    "Win32_System_Console",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Memory",
+    "Win32_System_Kernel",
+    "std",
+] }
