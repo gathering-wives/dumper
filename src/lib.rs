@@ -14,6 +14,7 @@ use windows::{
     },
 };
 
+mod aac;
 mod dumper;
 mod hook;
 
@@ -75,6 +76,8 @@ unsafe fn init_hook() -> Result<(), ()> {
     .unwrap();
 
     hook::hook(gstaft as _, hooked_get_system_time);
+
+    aac::init();
 
     Ok(())
 }
