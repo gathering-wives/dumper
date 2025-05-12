@@ -24,7 +24,7 @@ pub fn hooked_nt_query_system_information(ctx: &mut CONTEXT) {
         #[repr(C)]
         #[allow(non_snake_case)]
         struct SYSTEM_CODEINTEGRITY_INFORMATION {
-            Length: u32,
+            length: u32,
             CodeIntegrityOptions: u32,
         }
 
@@ -45,9 +45,9 @@ pub fn hooked_nt_query_system_information(ctx: &mut CONTEXT) {
 }
 
 pub unsafe fn init() {
-    let kernel32 = GetModuleHandleA(PCSTR::from_raw("kernel32.dll\0".as_ptr())).unwrap();
+    let ntdll = GetModuleHandleA(PCSTR::from_raw("ntdll.dll\0".as_ptr())).unwrap();
     let ntqsi = GetProcAddress(
-        kernel32,
+        ntdll,
         PCSTR::from_raw("NtQuerySystemInformation\0".as_ptr()),
     )
     .unwrap();
