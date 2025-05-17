@@ -5,7 +5,7 @@ use tracing::{info, trace, warn};
 use windows::{
     core::PCSTR,
     Win32::System::{
-        Diagnostics::Debug::{CONTEXT, CONTEXT_CONTROL_AMD64},
+        Diagnostics::Debug::{CONTEXT, CONTEXT_CONTROL_AMD64, CONTEXT_INTEGER_AMD64},
         LibraryLoader::{GetModuleHandleA, GetProcAddress},
     },
 };
@@ -17,12 +17,7 @@ pub fn hooked_nt_query_system_information(ctx: &mut CONTEXT) {
     let ptr = ctx.Rdx as *mut u8;
     let return_address = unsafe { std::ptr::read_unaligned(ctx.Rsp as *const u64) };
 
-    trace!(
-        "hooked_nt_query_system_information({}, {:8x}): {:8x}",
-        id,
-        ptr as u64,
-        return_address
-    );
+    trace!("hooked_nt_query_system_information({})", id);
 
     // SystemCodeIntegrityInformation
     if id == 0x67 {
@@ -46,17 +41,23 @@ pub fn hooked_nt_query_system_information(ctx: &mut CONTEXT) {
             return;
         }
 
+        // Make sure "ReturnLength" is nullptr.
+        assert!(ctx.R9 == 0);
+
         info.CodeIntegrityOptions = {
             0x01 | // CODEINTEGRITY_OPTION_ENABLED
             0x04 | // CODEINTEGRITY_OPTION_UMCI_ENABLED
             0x400 // CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED
         };
 
+        // Set the return value to STATUS_SUCCESS.
+        ctx.Rax = 0;
+
         // Skip the original function and return straight to the caller.
         ctx.Rip = return_address;
 
         // Indicate changes to the context.
-        ctx.ContextFlags |= CONTEXT_CONTROL_AMD64;
+        ctx.ContextFlags |= CONTEXT_CONTROL_AMD64 | CONTEXT_INTEGER_AMD64;
 
         info!("done");
     }
