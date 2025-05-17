@@ -9,13 +9,16 @@ use std::sync::OnceLock;
 use std::{ffi::c_void, io::Write};
 
 use tracing::{trace, warn, Level};
+use tracing_subscriber::FmtSubscriber;
 use windows::{
     core::PCSTR,
     Win32::{
-        Foundation::HINSTANCE,
+        Foundation::{HINSTANCE, HMODULE},
         System::{
+            Console::AllocConsole,
             Diagnostics::Debug::CONTEXT,
-            LibraryLoader::{GetModuleHandleA, GetProcAddress},
+            LibraryLoader::{DisableThreadLibraryCalls, GetModuleHandleA, GetProcAddress},
+            SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
         },
     },
 };
@@ -85,8 +88,17 @@ unsafe fn hook_gstaft() -> Result<()> {
 }
 
 unsafe fn init() -> Result<()> {
-    hook::init();
+    _ = AllocConsole();
 
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .with_ansi(false)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set default global subscriber");
+
+    hook::init();
     get_image_range();
     hook_gstaft()?;
     aac::init();
@@ -102,20 +114,6 @@ unsafe fn uninit() -> Result<()> {
 
 #[no_mangle]
 unsafe extern "system" fn DllMain(instance: HINSTANCE, reason: u32, _: usize) -> i32 {
-    use windows::Win32::Foundation::HMODULE;
-    use windows::Win32::System::{
-        Console::AllocConsole,
-        LibraryLoader::DisableThreadLibraryCalls,
-        SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
-    };
-
-    _ = AllocConsole();
-
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
-
     match reason {
         DLL_PROCESS_ATTACH => {
             let hmodule = HMODULE(instance.0);
