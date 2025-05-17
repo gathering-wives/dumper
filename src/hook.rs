@@ -1,11 +1,13 @@
+//! Simple HWBP library wrapper.
+
 use hwbp::{Context, HWBPCallback};
 
 pub fn init() {
     hwbp::init();
 }
 
-pub fn free() {
-    hwbp::free();
+pub fn free() -> Result<(), hwbp::ContextError> {
+    hwbp::free_and_clear()
 }
 
 pub fn hook(addr: usize, callback: HWBPCallback) {

@@ -1,3 +1,6 @@
+//! Dumper
+//! Dumps the image to a file, fixing section headers.
+
 use pelite::{
     image::IMAGE_SECTION_HEADER,
     pe64::{Pe, PeView},

@@ -1,3 +1,7 @@
+//! Anti-Anti-Cheat
+//! Hooks NtQuerySystemInformation to fake Code Integrity being enabled
+
+use tracing::{info, trace, warn};
 use windows::{
     core::PCSTR,
     Win32::System::{
@@ -10,45 +14,59 @@ use crate::hook;
 
 pub fn hooked_nt_query_system_information(ctx: &mut CONTEXT) {
     let id = ctx.Rcx;
+    let ptr = ctx.Rdx as *mut u8;
     let return_address = unsafe { std::ptr::read_unaligned(ctx.Rsp as *const u64) };
 
-    println!(
-        "hooked_nt_query_system_information({}): {:8x}",
-        id, return_address
+    trace!(
+        "hooked_nt_query_system_information({}, {:8x}): {:8x}",
+        id,
+        ptr as u64,
+        return_address
     );
 
     // SystemCodeIntegrityInformation
     if id == 0x67 {
-        println!("hooked_nt_query_system_information: SystemCodeIntegrityInformation");
+        info!("hooked_nt_query_system_information: SystemCodeIntegrityInformation");
+
+        if ptr.is_null() {
+            warn!("ptr is null");
+            return;
+        }
 
         #[repr(C)]
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, non_camel_case_types)]
         struct SYSTEM_CODEINTEGRITY_INFORMATION {
-            length: u32,
+            Length: u32,
             CodeIntegrityOptions: u32,
         }
 
-        let info = unsafe { &mut *(ctx.Rdx as *mut SYSTEM_CODEINTEGRITY_INFORMATION) };
-        if info.length == 8 {
-            info.CodeIntegrityOptions = 0;
-            info.CodeIntegrityOptions |= 0x01; // CODEINTEGRITY_OPTION_ENABLED
-            info.CodeIntegrityOptions |= 0x04; // CODEINTEGRITY_OPTION_UMCI_ENABLED
-            info.CodeIntegrityOptions |= 0x400; // CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED
-
-            // set flags
-            ctx.Rip = return_address;
-            ctx.ContextFlags |= CONTEXT_CONTROL_AMD64;
-        } else {
-            println!("length({}) is not 8!", info.length);
+        let info = unsafe { &mut *(ptr as *mut SYSTEM_CODEINTEGRITY_INFORMATION) };
+        if info.Length != 8 {
+            warn!("length({}) is not 8!", info.Length);
+            return;
         }
+
+        info.CodeIntegrityOptions = {
+            0x01 | // CODEINTEGRITY_OPTION_ENABLED
+            0x04 | // CODEINTEGRITY_OPTION_UMCI_ENABLED
+            0x400 // CODEINTEGRITY_OPTION_HVCI_KMCI_ENABLED
+        };
+
+        // Skip the original function and return straight to the caller.
+        ctx.Rip = return_address;
+
+        // Indicate changes to the context.
+        ctx.ContextFlags |= CONTEXT_CONTROL_AMD64;
+
+        info!("done");
     }
 }
 
 pub unsafe fn init() {
-    let ntdll = GetModuleHandleA(PCSTR::from_raw("ntdll.dll\0".as_ptr())).unwrap();
+    let ntdll = GetModuleHandleA(PCSTR::from_raw(c"ntdll.dll".as_ptr() as _)).unwrap();
     let ntqsi = GetProcAddress(
         ntdll,
-        PCSTR::from_raw("NtQuerySystemInformation\0".as_ptr()),
+        PCSTR::from_raw(c"NtQuerySystemInformation".as_ptr() as _),
     )
     .unwrap();
 
